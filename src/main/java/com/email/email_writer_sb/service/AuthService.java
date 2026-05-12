@@ -18,14 +18,13 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final EmailService emailService;
+    private final ResendEmailService resendEmailService;
     private final JwtUtils jwtUtils;
 
-    // ✅ REGISTER
     public MessageResponse register(RegisterRequest request) {
 
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already exists ❌");
+            throw new RuntimeException("Email already exists");
         }
 
         String otp = generateOTP();
@@ -40,32 +39,31 @@ public class AuthService {
                 .build();
 
         userRepository.save(user);
-        emailService.sendOtpEmail(user.getEmail(), otp);
 
-        return new MessageResponse("OTP sent to email 📩");
+        resendEmailService.sendOtpEmail(user.getEmail(), otp);
+
+        return new MessageResponse("OTP sent to email");
     }
 
-    // ✅ VERIFY OTP (🔥 FIXED)
     public MessageResponse verifyOtp(VerifyOtpRequest request) {
 
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("User not found ❌"));
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        // 🔥 FIX: exception hata diya
         if (user.isVerified()) {
-            return new MessageResponse("Already verified ✅");
+            return new MessageResponse("Already verified");
         }
 
         if (user.getOtp() == null) {
-            throw new RuntimeException("OTP not found ❌");
+            throw new RuntimeException("OTP not found");
         }
 
         if (user.getOtpExpiry().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("OTP expired ⏰");
+            throw new RuntimeException("OTP expired");
         }
 
         if (!user.getOtp().equals(request.getOtp())) {
-            throw new RuntimeException("Invalid OTP ❌");
+            throw new RuntimeException("Invalid OTP");
         }
 
         user.setVerified(true);
@@ -74,18 +72,16 @@ public class AuthService {
 
         userRepository.save(user);
 
-        return new MessageResponse("Account verified ✅");
+        return new MessageResponse("Account verified");
     }
 
-    // ✅ RESEND OTP (🔥 IMPROVED)
     public MessageResponse resendOtp(String email) {
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found ❌"));
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        // 🔥 OPTIONAL: already verified check
         if (user.isVerified()) {
-            return new MessageResponse("User already verified, please login ✅");
+            return new MessageResponse("User already verified, please login");
         }
 
         String otp = generateOTP();
@@ -94,23 +90,23 @@ public class AuthService {
         user.setOtpExpiry(LocalDateTime.now().plusMinutes(5));
 
         userRepository.save(user);
-        emailService.sendOtpEmail(email, otp);
 
-        return new MessageResponse("New OTP sent 📩");
+        resendEmailService.sendOtpEmail(email, otp);
+
+        return new MessageResponse("New OTP sent");
     }
 
-    // 🔥 LOGIN
     public AuthResponse login(LoginRequest request) {
 
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("User not found ❌"));
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
         if (!user.isVerified()) {
-            throw new RuntimeException("Verify your email first ❌");
+            throw new RuntimeException("Verify your email first");
         }
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new RuntimeException("Invalid password ❌");
+            throw new RuntimeException("Invalid password");
         }
 
         String token = jwtUtils.generateToken(user.getEmail());
